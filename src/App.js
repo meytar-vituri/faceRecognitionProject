@@ -8,11 +8,9 @@ import Signin from './components/Sighin/Signin';
 import Register from './components/Register/Register';
 import './App.css';
 import Particles from 'react-particles-js';
-import Clarifai from 'clarifai';
 
-const app = new Clarifai.App({
-  apiKey: "8f59dc8c0ac04441bce46e976865a166",
- });
+
+
 
 const particlesParams = {
   particles: {
@@ -25,17 +23,34 @@ const particlesParams = {
     }
   }
 }
-
+const initialstate = {
+  input: ' ',
+  imageUrl: '',
+  box: {}, 
+  route: 'signin',
+  isSignedIn: false, 
+  user: {
+    id:'',
+    name: '',
+    email: '',
+    entries: 0,
+    joined: ''
+  }
+}
 class App extends Component {
   constructor(){
     super();
-    this.state = {
-      input: ' ',
-      imageUrl: '',
-      box: {}, 
-      route: 'signin',
-      isSignedIn: false, 
-    }
+    this.state = initialstate;
+  }
+
+  loadUser = (data) =>{
+    this.setState( {user:{
+      id:data.id,
+      name: data.name,
+      email: data.email,
+      entries: data.entries,
+      joined: data.joined
+    }})
   }
 
   calcFaceLocation = (data)=>{
@@ -56,12 +71,12 @@ class App extends Component {
   }
 
   onInputChange = (event) =>{
-    this.setState({input: event.target.value})
+    this.setState({input: event.target.value});
   }
 
   onRouteChange =(route) => {
-    if (route === 'signout'){
-      this.setState({isSignedIn: false})
+    if (route === 'signin'){
+      this.setState(initialstate);
     }else if (route === 'home'){
       this.setState({isSignedIn : true})
     }
@@ -69,12 +84,35 @@ class App extends Component {
   }
 
   onBtnSubmit = () =>{
-    this.setState({imageUrl: this.state.input})
-    app.models
-  .predict(Clarifai.FACE_DETECT_MODEL, this.state.input)
-  .then(response =>this.displayFaceBox(this.calcFaceLocation(response)))
-  .catch(err =>console.log(err));
-    }
+    this.setState({imageUrl: this.state.input});
+    fetch('https://obscure-scrubland-64592.herokuapp.com/imageurl', {
+        method: 'post',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          input: this.state.input
+        })
+      })
+      .then(response => response.json())
+    .then(response =>{
+      if(response){
+        fetch('https://obscure-scrubland-64592.herokuapp.com/image', {
+          method: 'put',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            id: this.state.user.id
+          })
+        })
+        .then(response => response.json())
+        .then(count =>{
+          this.setState(Object.assign(this.state.user, {entries:count}))
+        })
+        .catch(console.log);
+      }
+      this.displayFaceBox(this.calcFaceLocation(response));
+      })
+    .catch(err =>console.log(err));
+      }
+  
   
 
   render(){
@@ -88,14 +126,14 @@ class App extends Component {
       {route==='home'?
         <div>
         <Logo />
-        <Rank />
+        <Rank name ={this.state.user.name} entries= {this.state.user.entries}/>
         <ImageLinkForm onInputChange={this.onInputChange} onBtnSubmit = {this.onBtnSubmit}/>
         <FaceRecognition imageUrl={imageUrl} box={box} />
         </div>
         :(
           route === 'signin'
-          ? <Signin onRouteChange={this.onRouteChange} />
-          :<Register onRouteChange ={this.onRouteChange} />
+          ? <Signin onRouteChange={this.onRouteChange} loadUser={this.loadUser}/>
+          :<Register onRouteChange ={this.onRouteChange}  loadUser={this.loadUser}/>
         )
       }
     </div>
